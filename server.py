@@ -2,28 +2,27 @@
 
 import traceback
 from functools import wraps
-import sys
 from socket import socket, AF_INET, SOCK_STREAM
 import select
 import common_classes
-# import time
+import argparse
 import logging
 import log_config
 mesg_serv_log = logging.getLogger("msg.server")
 mesg_con_log = logging.getLogger("msg.cons")
 
-try:
-    PORT = int(sys.argv[sys.argv.index("-p") + 1])
-except ValueError:
-    PORT = 7777
-try:
-    ADDR = int(sys.argv[sys.argv.index("-a") + 1])
-except ValueError:
-    ADDR = ""
+# создаю парсер, и цепляю к нему два параметра
+parser = argparse.ArgumentParser()
+parser.add_argument('-p', "--PORT", type=int, default=7777, help="port, by default 7777")
+parser.add_argument('-a', "--ADDR", default="", help="host for listening to server, by default "" - all")
+args = parser.parse_args()
+
+PORT = args.PORT
+ADDR = args.ADDR
 
 
 class Log():
-    """Создает декоратор для логирования функции, применять с осторожностью)"""
+    """Создает декоратор для логирования функции, применять с осторожностью"""
     deco_log = logging.getLogger("msg.deco")
 
     def __init__(self):
@@ -32,9 +31,11 @@ class Log():
     def __call__(self, func):
         @wraps(func)
         def decorated(*args, **kwargs):
-            # traceback какая-то магия
-            temp = [f[-2] for f in traceback.extract_stack()][-2]
-            Log.deco_log.info("Функция %s была вызвана из функции %s", str(func.__name__), temp)
+            LVL = -2  # уровень вложенности
+            NAME_FUNC_POS = -2  # название функции в выводе traceback
+            temp = [f[NAME_FUNC_POS] for f in traceback.extract_stack()][LVL]
+            Log.deco_log.info("Функция %s была вызвана из функции %s с аргуметами %s",
+                              str(func.__name__), temp, str(args))
             return func(*args, **kwargs)
         return decorated
 
@@ -73,6 +74,8 @@ class Client:
                 mesg_serv_log.warning("Lost connect %s", str(sock.addr))
                 mesg_con_log.debug("Lost connect %s", str(sock.addr))
                 sock.remove()
+            else:
+                mesg_con_log.debug("Recv message %s", str(sock.last_msg))
             finally:
                 sock.status_r = False
 
@@ -87,6 +90,7 @@ class Client:
                 mesg_con_log.debug("Lost connect %s", str(sock.addr))
                 sock.remove()
             else:
+                mesg_con_log.debug("Send message %s", str(sock.next_msg))
                 sock.next_msg = ""
             finally:
                 sock.status_w = False
@@ -109,8 +113,11 @@ class Client:
                 if act == "msg":
                     # пока не смотрю кому, отправляю всем кто готов принять
                     msg_to_wr = common_classes.Message(sock.last_msg).message  # просто пересылаю
-                    for sock in [clnt for clnt in Client.clients if clnt.status_w and not clnt.next_msg]:
-                        sock.next_msg = msg_to_wr  # Потенциальное место для ошибки! определять готовность
+                    for sock_to_send in [clnt for clnt in Client.clients if (
+                                         clnt.status_w  # готов принять
+                                         and not clnt.next_msg  # не имеет сообщений на передачу
+                                         and clnt != sock)]:  # не отправляет себе
+                        sock_to_send.next_msg = msg_to_wr  # Потенциальное место для ошибки! определять готовность
                         # нужно до обработки сообщений!!!
                 if act == "quit":
                     sock.status = ""
@@ -126,8 +133,8 @@ def mainloop():
     s.bind((ADDR, PORT))
     s.listen(5)
     s.settimeout(0.2)   # Таймаут для операций с сокетом
-    mesg_serv_log.info("Server started")
-    mesg_con_log.info("Server started")
+    mesg_serv_log.info("Server started, port: %s, host: %s", PORT, ADDR)
+    mesg_con_log.info("Server started, port: %s, host: %s", PORT, ADDR)
     while True:
         try:
             result = s.accept()  # Проверка подключений

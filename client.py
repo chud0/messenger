@@ -3,25 +3,25 @@
 from socket import socket, AF_INET, SOCK_STREAM
 import time
 import common_classes
-import sys
+import argparse
 import logging
 import log_config
 mesg_con_log = logging.getLogger("msg.cons")
 
-try:
-    PORT = int(sys.argv[sys.argv.index("-p") + 1])
-except ValueError:
-    PORT = 7777
-try:
-    ADDR = int(sys.argv[sys.argv.index("-a") + 1])
-except ValueError:
-    ADDR = ""
-try:
-    sys.argv.index("-w")
-except ValueError:
-    W_MODE = False
-else:
-    W_MODE = True  # запустился в режиме записи, по умолчанию - чтения
+# создаю парсер, и цепляю к нему два параметра
+parser = argparse.ArgumentParser(description="client for messanger")
+parser.add_argument('-p', "--PORT", type=int, default=7777, help="port to connection on server, by default 7777")
+parser.add_argument('-a', "--ADDR", default="localhost", help="server host, by default localhost")
+# + группа для -r / -w
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument("-w", "--write", action="store_true", help="mode, or")
+group.add_argument("-r", "--read", action="store_false", help="mode")
+
+args = parser.parse_args()
+
+PORT = args.PORT
+ADDR = args.ADDR
+W_MODE = args.write
 
 MAX_RECV = 640
 
@@ -41,7 +41,7 @@ def client():
         sock.send(message)
         m_msg = sock.recv(MAX_RECV)
         if common_classes.Message(m_msg).prop_dict["response"] == 200:
-            mesg_con_log.info("Connected to server")
+            mesg_con_log.info("Connected to server, port: %s host: %s", PORT, ADDR)
         else:
             mesg_con_log.error("Сan't connect to server")
             exit()
