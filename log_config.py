@@ -12,7 +12,7 @@ deco_form = logging.Formatter("%(asctime).19s %(message)s")
 # обработчик с ежедневной ротацией лог файлов
 filename = "messenger.log"
 eday_log_hand = logging.handlers.TimedRotatingFileHandler(filename, when="midnight", interval=1)
-eday_log_hand.suffix = "_%Y-%m-%d"
+eday_log_hand.suffix = "%Y-%m-%d"
 eday_log_hand.setFormatter(formatter)
 
 # обработчик в stderr
