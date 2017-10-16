@@ -40,6 +40,7 @@ def client():
         }).message
         sock.send(message)
         m_msg = sock.recv(MAX_RECV)
+        print(m_msg)
         if common_classes.Message(m_msg).prop_dict["response"] == 200:
             mesg_con_log.info("Connected to server, port: %s host: %s", PORT, ADDR)
         else:
