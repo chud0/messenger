@@ -6,28 +6,25 @@ import common_classes
 from socket import socket, AF_INET, SOCK_STREAM
 import select
 
+import logging
+import log_config
+mesg_serv_log = logging.getLogger("msg.server")
+mesg_con_log = logging.getLogger("msg.cons")
 
-# создаю парсер, и цепляю к нему два параметра
-parser = argparse.ArgumentParser()
-parser.add_argument('-p', "--PORT", type=int, default=7777, help="port, by default 7777")
-parser.add_argument('-a', "--ADDR", default="", help="host for listening to server, by default all")
-args = parser.parse_args()
+if __name__ == '__main__':
+    # создаю парсер, и цепляю к нему два параметра
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', "--PORT", type=int, default=7777, help="port, by default 7777")
+    parser.add_argument('-a', "--ADDR", default="", help="host for listening to server, by default all")
+    args = parser.parse_args()
 
-PORT = args.PORT
-ADDR = args.ADDR
+    PORT = args.PORT
+    ADDR = args.ADDR
+else:
+    PORT = 7777
+    ADDR = ""
 
 MAX_RECV = 640
-
-# class BasicMessengerHandler(socketserver.BaseRequestHandler):
-#     """
-#     Принимает запросы, обрабатывает и отправляет ответ
-#     """
-#
-#     def handle(self):
-#         # self.data = self.rfile.readline().strip()
-#         self.data = self.request.recv(1024)
-#         client_addr = self.client_address
-#         # обработать пришедшие данные, отправить ответ
 
 
 class IncomingClient():
@@ -39,8 +36,6 @@ class IncomingClient():
         """Подключен новый клиент"""
         self.conn, self.addr = accept_info
         self.status = ""  # статус клиента, по протоколу
-        self.status_r = False  # готов прислать серверу? False/True
-        self.status_w = False  # готов читать с сервера? False/True
         self.last_msg = []  # полученные но необработанное сообщения
         self.next_msg = []  # сообщения к отправке
         IncomingClient.connected_clients[self.addr] = self
@@ -90,6 +85,8 @@ class IncomingClient():
                 "response": 400,
                 "error": "Breaking response/json",
             }
+        else:
+            return None
         return answ_msg
 
     def remove(self):
@@ -98,45 +95,94 @@ class IncomingClient():
         IncomingClient.connected_clients.pop(self.addr)
 
 
-def mainloop():
-    s = socket(AF_INET, SOCK_STREAM)
-    s.bind((ADDR, PORT))
-    s.listen(5)
-    s.settimeout(0.2)   # Таймаут для операций с сокетом
-    while True:
+class Server(IncomingClient):
+    """Класс сервера"""
+    my_clnt = []
+
+    def __init__(self, addr, port):
+        self.ready_to_read = []
+        self.ready_to_write = []
+        self.socket = socket(AF_INET, SOCK_STREAM)
+        self.socket.bind((addr, port))
+        self.socket.listen(5)
+        self.socket.settimeout(0.2)   # Таймаут для операций с сокетом
+
+    def check_connection(self):
+        """Проверка подключений"""
         try:
-            result = s.accept()  # Проверка подключений
-        except OSError as e:
-            pass                     # timeout вышел
+            result = self.socket.accept()
+        except OSError:
+            pass  # timeout вышел
         else:
-            IncomingClient(result)
+            new_client = IncomingClient(result)
+            Server.my_clnt.append(new_client)
+            mesg_con_log.info("Connected %s", str(Server.my_clnt[-1].addr))
+
+    def get_clients_connection(self):
+        return [clnt.conn for clnt in self.get_my_clients()]
+
+    def get_my_clients(self):
+        return [clnt for clnt in Server.my_clnt if clnt in IncomingClient.connected_clients.values()]
+
+    def check_client_status(self):
+        clients = self.get_clients_connection()
+        wait = 0
+        try:
+            read, write, exc = select.select(clients, clients, [], wait)
+        except:
+            pass  # Ничего не делать, если какой-то клиент отключился
         finally:
-            wait = 0
-            clients = [clnt.conn for clnt in IncomingClient.connected_clients.values()]
+            self.ready_to_read = [_cl for _cl in self.get_my_clients() if _cl.conn in read]  # клиенты, готовы отправить серверу
+            self.ready_to_write = [_cl for _cl in self.get_my_clients() if _cl.conn in write]  # клиенты, готовы принять
+
+    def recv_messages(self):
+        """принимает сообщения"""
+        for _ in range(len(self.ready_to_read)):
+            clnt = self.ready_to_read.pop()
             try:
-                r, w, e = select.select(clients, clients, [], wait)
-            except:
-                pass            # Ничего не делать, если какой-то клиент отключился
-            for clnt in [_cl for _cl in IncomingClient.connected_clients.values() if _cl.conn in r]:
                 incoming_msg = common_classes.Message(clnt.conn.recv(MAX_RECV)).prop_dict
+            except ConnectionResetError:
+                # отвалился клиент, заявлявший о готовности писать
+                clnt.remove()
+            else:
                 clnt.last_msg.append(incoming_msg)
-                clnt.processing_msg()
-            for clnt in [_cl for _cl in IncomingClient.connected_clients.values() if _cl.conn in w]:
-                if clnt.next_msg:
-                    clnt.next_msg.reverse()
+                mesg_con_log.debug("Received msg: %s, from %s", str(incoming_msg), clnt.addr)
+
+    def send_messages(self):
+        """отправляет сообщения"""
+        for _ in range(len(self.ready_to_write)):
+            clnt = self.ready_to_write.pop()
+            if clnt.next_msg:
+                clnt.next_msg.reverse()
+            else:
+                continue
+            for _ in range(len(clnt.next_msg)):
+                outgoing_message = clnt.next_msg.pop()
+                try:
+                    clnt.conn.send(outgoing_message)
+                except:
+                    clnt.remove()
+                    break
                 else:
-                    continue
-                for _ in range(len(clnt.next_msg)):
-                    outgoing_message = clnt.next_msg.pop()
-                    print("собираюсь отправить: ", outgoing_message)
-                    try:
-                        clnt.conn.send(outgoing_message)
-                    except:
-                        # отвалился клиент, заявлявший о готовности читать
-                        clnt.remove()
-                        break
-                    else:
-                        pass
+                    mesg_con_log.debug("Sent msg: %s, to %s", str(outgoing_message), clnt.addr)
+
+    def processing_messages(self):
+        clients = self.get_my_clients()
+        for clnt in clients:
+            clnt.processing_msg()
 
 
-mainloop()
+def mainloop():
+    s = Server(ADDR, PORT)
+    mesg_con_log.debug("Server started")
+    while True:
+        s.check_connection()
+        s.check_client_status()
+        s.recv_messages()
+        s.processing_messages()
+        s.send_messages()
+
+
+if __name__ == '__main__':
+    mesg_con_log.debug("Start server...")
+    mainloop()
