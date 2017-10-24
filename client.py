@@ -4,14 +4,15 @@
 Пример запуска на отправление сообщений: python3 client.py -l chud0 -w
 """
 
-import bd_client_app
+
 from socket import socket, AF_INET, SOCK_STREAM
-import time
 import jim.common_classes as common_classes
 import jim.config as config
 import argparse
+import bd_client_app
 import logging
 import log_config
+import time
 mesg_con_log = logging.getLogger("msg.cons")
 
 # создаю парсер, и цепляю к нему три параметра
@@ -70,7 +71,7 @@ def client():
                 if len(inp):
                     sock.send(m_msg)
                     mesg_con_log.debug("Sent message: %s", str(m_msg))
-                    bd_client_app.BDMsgHistory().save_history(msg_time, LOGIN, inp, False)
+                    bd_client_app.BDMsgHistory().save_history(msg_time, "self", inp, False)
                 inp = input("MSG<<< ")
         else:
             m_msg = {"message": "debug"}
