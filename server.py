@@ -1,28 +1,16 @@
 # coding: UTF-8
-
-import argparse
 # import socketserver
-import common_classes
 from socket import socket, AF_INET, SOCK_STREAM
-import select
-
+import jim.common_classes as common_classes
+import jim.config as config
+import argparse
 import logging
 import log_config
+import select
+import time
+
 mesg_serv_log = logging.getLogger("msg.server")
 mesg_con_log = logging.getLogger("msg.cons")
-
-if __name__ == '__main__':
-    # создаю парсер, и цепляю к нему два параметра
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-p', "--PORT", type=int, default=7777, help="port, by default 7777")
-    parser.add_argument('-a', "--ADDR", default="", help="host for listening to server, by default all")
-    args = parser.parse_args()
-
-    PORT = args.PORT
-    ADDR = args.ADDR
-else:
-    PORT = 7777
-    ADDR = ""
 
 MAX_RECV = 640
 
@@ -47,22 +35,22 @@ class IncomingClient():
         else:
             return None
         for _ in range(len(self.last_msg)):
-            message = common_classes.Message(self.last_msg.pop()).prop_dict
+            message = common_classes.JimResponse(self.last_msg.pop())()
             self.get_action_msg(message)
 
     def get_action_msg(self, message):
         """Формирует действие по полученному сообщению"""
         try:
             action = message["action"]
-        except:
-            response = self.get_response("400")
-            self.next_msg.append(common_classes.Message(response).message)
+        except KeyError:
+            response = self.get_response(message["ERROR"], err_msg=message["message"])
+            self.next_msg.append(response)
         else:
             if action == "presence":
                 # на презенс меняю статус, готовлю ответ, и закидываю в очередь на передачу
-                self.status = message["user"]["status"]
-                response = self.get_response("200")
-                self.next_msg.append(common_classes.Message(response).message)
+                self.status = message["type"]
+                response = self.get_response(config.OK)
+                self.next_msg.append(response)
 
             elif action == "msg":
                 # пересылаю всем (кроме себя)
@@ -74,20 +62,14 @@ class IncomingClient():
                 self.status = ""
                 self.remove()
 
-    def get_response(self, response_code):
-        if response_code == "200":
-            answ_msg = {
-                "response": 200,
-                "alert": "",
-            }
-        elif response_code == "400":
-            answ_msg = {
-                "response": 400,
-                "error": "Breaking response/json",
-            }
-        else:
-            return None
-        return answ_msg
+    def get_response(self, response_code, err_msg=""):
+        answ_msg = common_classes.JimMessage(
+            response=response_code,
+            time=time.time(),
+            alert=err_msg,
+            error=err_msg,
+        )
+        return answ_msg()
 
     def remove(self):
         """Отключаю. Если вышел не сам, добавить в лог"""
@@ -184,5 +166,18 @@ def mainloop():
 
 
 if __name__ == '__main__':
+    # создаю парсер, и цепляю к нему два параметра
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', "--PORT", type=int, default=7777, help="port, by default 7777")
+    parser.add_argument('-a', "--ADDR", default="", help="host for listening to server, by default all")
+    args = parser.parse_args()
+
+    PORT = args.PORT
+    ADDR = args.ADDR
+
     mesg_con_log.debug("Start server...")
     mainloop()
+
+else:
+    PORT = 7777
+    ADDR = ""

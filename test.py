@@ -1,5 +1,5 @@
+import jim.common_classes as common_classes
 import pytest
-import common_classes
 import server
 import time
 
@@ -23,6 +23,10 @@ def test_message_action():
 def test_message_msg():
     assert common_classes.Message(common_classes.Message(my_test_message).message).prop_dict["user"]["status"] == "online"
 
+
+def test_message_format():
+    assert common_classes.Message("test string").prop_dict["ERROR"] == "400"
+
 # тесты модуля common_classes
 
 
@@ -34,7 +38,7 @@ def test_processing_msg():
     temp = test_clnt.get_action_msg
     test_clnt.get_action_msg = lambda x: test_list.append(list(x.values())[0])
     test_list = []
-    test_clnt.last_msg = [{"A": 1}, {"B": 2}, {"C": 3}]
+    test_clnt.last_msg = [{"action": 1}, {"action": 2}, {"action": 3}]
     # тестируемая ф-ия:
     test_clnt.processing_msg()
     assert test_list == [1, 2, 3]
@@ -44,8 +48,8 @@ def test_processing_msg():
 
 
 def test_get_response():
-    assert test_clnt.get_response("200")["response"] == 200
-    assert test_clnt.get_response("205") is None
+    assert test_clnt.get_response(200)["response"] == 200
+    assert test_clnt.get_response(205) is None
 
 
 test2_clnt = server.IncomingClient(("C", "D"))
