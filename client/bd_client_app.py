@@ -53,6 +53,8 @@ class MsgHistory:
 m_u = mapper(User, client_table)
 m_h = mapper(MsgHistory, message_history_table)
 
+Session = sessionmaker(bind=engine)
+
 
 class BDMsgHistory():
     """
@@ -61,7 +63,7 @@ class BDMsgHistory():
     Метод get_history (в разработке) достает сообщения из базы.
     """
     def __init__(self):
-        self.Session = sessionmaker(bind=engine)
+        self.Session = Session
 
     def save_history(self, time, client, message, incoming_msg=True):
         session = self.Session()

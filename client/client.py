@@ -4,6 +4,8 @@
 Пример запуска на отправление сообщений: python3 client.py -l chud0 -w
 """
 
+import sys
+sys.path.append("..")  # иначе не видел пакет jim
 
 from socket import socket, AF_INET, SOCK_STREAM
 import jim.common_classes as common_classes
@@ -57,17 +59,35 @@ def client():
             mesg_con_log.info("Connected to server, port: %s host: %s", PORT, ADDR)
 
         if W_MODE:
-            inp = ""
+            inp = "hi!"
             while not inp == "exit":
                 msg_time = time.time()
-                m_msg = common_classes.JimMessage(
-                    action="msg",
-                    time=msg_time,
-                    message=inp,
-                    encoding=config.CODING,
-                    from_u=LOGIN,
-                    to_u="all"
-                )()
+                if inp.split()[0] == "add_contact":
+                    m_msg = common_classes.JimMessage(
+                        action="add_contact",
+                        user_id=inp.split()[1],
+                        time=msg_time,
+                    )()
+                elif inp.split()[0] == "get_contacts":
+                    m_msg = common_classes.JimMessage(
+                        action="get_contacts",
+                        time=msg_time,
+                    )()
+                elif inp.split()[0] == "del_contact":
+                    m_msg = common_classes.JimMessage(
+                        action="del_contact",
+                        user_id=inp.split()[1],
+                        time=msg_time,
+                    )()
+                else:
+                    m_msg = common_classes.JimMessage(
+                        action="msg",
+                        time=msg_time,
+                        message=inp,
+                        encoding=config.CODING,
+                        from_u=LOGIN,
+                        to_u="all"
+                    )()
                 if len(inp):
                     sock.send(m_msg)
                     mesg_con_log.debug("Sent message: %s", str(m_msg))

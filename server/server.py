@@ -1,9 +1,14 @@
 # coding: UTF-8
 # import socketserver
+
+import sys
+sys.path.append("..")  # иначе не видел пакет jim
+
 from socket import socket, AF_INET, SOCK_STREAM
+import argparse
+import bd_server_app as bd
 import jim.common_classes as common_classes
 import jim.config as config
-import argparse
 import logging
 import log_config
 import select
@@ -24,9 +29,11 @@ class IncomingClient():
         """Подключен новый клиент"""
         self.conn, self.addr = accept_info
         self.status = ""  # статус клиента, по протоколу
+        self.account_name = "" # логин клиента
         self.last_msg = []  # полученные но необработанное сообщения
         self.next_msg = []  # сообщения к отправке
         IncomingClient.connected_clients[self.addr] = self
+
 
     def processing_msg(self):
         """Проходит по списку полученных сообщений, передает в обработку"""
@@ -51,6 +58,8 @@ class IncomingClient():
                 self.status = message["type"]
                 response = self.get_response(config.OK)
                 self.next_msg.append(response)
+                self.account_name = message["account_name"] # присваиваю клиенту логин из сообщения
+                bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  #в базу истории
 
             elif action == "msg":
                 # пересылаю всем (кроме себя)
@@ -58,18 +67,54 @@ class IncomingClient():
                                             IncomingClient.connected_clients.values() if self != clnt]:
                     clnt_next_msg_queue.append(common_classes.Message(message).message)
 
+            elif action == "get_contacts":
+                # передать список конактов
+                contact_list = bd.BDCList().get_list(self.account_name)
+                response = self.get_response(config.ACCEPTED, attr=len(contact_list))
+                self.next_msg.append(response)
+                for user in contact_list:
+                    message = common_classes.JimMessage(
+                        action="contact_list",
+                        user_id=user
+                    )()
+                    self.next_msg.append(message)
+
+            elif action == "add_contact":
+                # добавить в список контактов
+                client = message["user_id"]
+                if bd.BDCList().add_client(self.account_name, client):
+                    response = self.get_response(config.OK)
+                else:
+                    response = self.get_response(config.SERVER_ERROR, err_msg="User not found")
+                self.next_msg.append(response)
+
+            elif action == "del_contact":
+                client = message["user_id"]
+                if bd.BDCList().remove_client(self.account_name, client):
+                    response = self.get_response(config.OK)
+                else:
+                    response = self.get_response(config.SERVER_ERROR, err_msg="User not find")
+                self.next_msg.append(response)
+
             elif action == "quit":
                 self.status = ""
                 self.remove()
 
-    def get_response(self, response_code, err_msg=""):
-        answ_msg = common_classes.JimMessage(
-            response=response_code,
-            time=time.time(),
-            alert=err_msg,
-            error=err_msg,
-        )
+    def get_response(self, response_code, err_msg="", attr=""):
+        if response_code == config.ACCEPTED:
+            answ_msg = common_classes.JimMessage(
+                response=response_code,
+                quantity=attr,
+            )
+        else:
+            answ_msg = common_classes.JimMessage(
+                response=response_code,
+                time=time.time(),
+                alert=err_msg,
+                error=err_msg,
+            )
         return answ_msg()
+
 
     def remove(self):
         """Отключаю. Если вышел не сам, добавить в лог"""

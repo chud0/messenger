@@ -9,7 +9,7 @@ CODING = "UTF-8"
 # Коды ответов (будут дополняться)
 BASIC_NOTICE = 100
 OK = 200
-ACCEPTED = 202
+ACCEPTED = 202  # применяется только для списка контактов
 WRONG_REQUEST = 400  # неправильный запрос/json объект
 SERVER_ERROR = 500
 
@@ -22,13 +22,17 @@ MANDATORY_MESSAGE_KEYS = {
     "authenticate": ["action", "time", {"user": ["account_name", "password"]}],
     "join": ["action", "time", "room"],
     "leave": ["action", "time", "room"],
+    "get_contacts": ["action", "time"],
+    "contact_list": ["action", "user_id"],
+    "add_contact": ["action", "user_id", "time"],
+    "del_contact": ["action", "user_id", "time"],
 }
 
 # Словарь обязательных ключей для ответа
 MANDATORY_RESPONSE_KEYS = {
     BASIC_NOTICE: ["response", "time", "alert"],
     OK: ["response", "time", "alert"],
-    ACCEPTED: ["response", "time", "alert"],
+    ACCEPTED: ["response", "quantity"],
     WRONG_REQUEST: ["response", "time", "error"],
     SERVER_ERROR: ["response", "time", "error"],
 }
