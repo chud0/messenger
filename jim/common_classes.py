@@ -21,13 +21,14 @@ class Message():
             except AttributeError:  # таких сообщений приходить не должно, для тестов
                 self.prop_dict = {"ERROR": config.SERVER_ERROR, "message": "incorrect type msg"}
             else:
-                self.message = bytes(json.dumps(msg), config.CODING)
+                self.message = bytes(json.dumps(msg), config.CODING).ljust(config.MAX_RECV)
                 self.prop_dict = msg
         except UnicodeDecodeError:
             self.message = msg
             self.prop_dict = {"ERROR": config.WRONG_REQUEST, "message": "incorrect encoding"}
         else:
             self.message = msg
+            temp = temp.rstrip()
             try:
                 temp = json.loads(temp)
             except json.JSONDecodeError:
