@@ -30,7 +30,7 @@ mesg_serv_log.addHandler(eday_log_hand)
 
 # регистратор для дебага
 mesg_con_log = logging.getLogger("msg.cons")
-mesg_con_log.setLevel(logging.INFO)
+mesg_con_log.setLevel(logging.DEBUG)
 mesg_con_log.addHandler(con_hand)
 
 # регистратор для декоратора

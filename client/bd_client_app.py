@@ -79,6 +79,7 @@ class BDContacts:
     remove_contact - удаляет контакт
     remove_contacts - удаляет все контакты
     update_contacts - обнавляет контакт лист по полученному списку
+    get_contacts - достает список контактов
     """
     def __init__(self):
         self.session = Session
@@ -113,3 +114,10 @@ class BDContacts:
         for user in user_list:
             self.add_contact(user)
         return True
+
+    def get_contacts(self):
+        session = self.session()
+        temp = session.query(Contacts).all()
+        contact_list = [contact.UserLog for contact in temp]
+        session.commit()
+        return contact_list

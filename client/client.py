@@ -23,18 +23,6 @@ import time
 mesg_con_log = logging.getLogger("msg.cons")
 
 
-# создаю парсер, и цепляю к нему три параметра
-parser = argparse.ArgumentParser(description="Client for messenger")
-parser.add_argument('-l', "--LGN", help="user name in chat", required=True)
-parser.add_argument('-p', "--PORT", type=int, default=7777, help="port to connection on server, by default 7777")
-parser.add_argument('-a', "--ADDR", default="localhost", help="server host, by default localhost")
-
-args = parser.parse_args()
-PORT = args.PORT
-ADDR = args.ADDR
-LOGIN = args.LGN
-
-
 class Client:
     """
     Класс клиента все необходимые методы внутри.
@@ -289,8 +277,41 @@ class Client:
 
         while self.begin_app:
             pass
+        time.sleep(1)
         self.sock.close()
+
+    def start_th_gui_client(self):
+        self.sock = socket(AF_INET, SOCK_STREAM)
+        self.sock.connect((self.addr, self.port))   # Соединиться с сервером
+        mesg_con_log.info("Client started")
+        self.inp_queue.put("presence")
+        # time.sleep(1)
+        self.inp_queue.put("get_contacts")
+
+        func_to_start = [
+            self.processing_send,
+            self.processing_recv,
+            self.processing_msg,
+        ]
+        started_thread = []  # на будущее)
+        for func in func_to_start:
+            st_th = Thread(target=func)
+            st_th.daemon = True
+            st_th.start()
+            started_thread.append((func, st_th))
 
 
 if __name__ == '__main__':
+
+    # создаю парсер, и цепляю к нему три параметра
+    parser = argparse.ArgumentParser(description="Client for messenger")
+    parser.add_argument('-l', "--LGN", help="user name in chat", required=True)
+    parser.add_argument('-p', "--PORT", type=int, default=7777, help="port to connection on server, by default 7777")
+    parser.add_argument('-a', "--ADDR", default="localhost", help="server host, by default localhost")
+
+    args = parser.parse_args()
+    PORT = args.PORT
+    ADDR = args.ADDR
+    LOGIN = args.LGN
+
     Client(LOGIN, ADDR, PORT).start_client()
