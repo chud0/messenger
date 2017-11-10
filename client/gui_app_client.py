@@ -2,20 +2,39 @@
 # -*- coding: utf-8 -*-
 
 from PyQt5.QtWidgets import QGridLayout, QWidget, QPushButton, QApplication, QDesktopWidget, QLineEdit, QTextEdit, QListWidget, QStackedWidget
-from PyQt5.QtCore import QCoreApplication, pyqtSlot
+from PyQt5.QtCore import QCoreApplication, pyqtSlot, QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
 import bd_client_app
 import client
-import sys
+import logging
+import log_config
 import time
+import sys
 
-class Example(QWidget):
+mesg_con_log = logging.getLogger("msg.cons")
+
+class ClientThreads(QThread):
+    print_signal = pyqtSignal(tuple)
+    # client это экземпляр класса Client из client.py
+    def __init__(self, client):
+        QThread.__init__(self)
+        self.client = client
+
+    def run(self):
+        # print_queue = client.print_que
+        while True:
+            to_print = self.client.print_queue.get()
+            self.print_signal.emit(to_print)
+
+
+class ClientGui(QWidget):
 
     def __init__(self):
         super().__init__()
         self.init_client()
-        time.sleep(1)
+        # time.sleep(0.1)
         self.initUI()
+        self.initThreads()
 
 
     def initUI(self):
@@ -36,6 +55,7 @@ class Example(QWidget):
         # два словаря, в первом: логин ключ виджет значение, второй наоборот
         self.messageBox_dict_ctw = {}
         self.messageBox_dict_wtc = {}
+        self.icon_user = QIcon('user.svg')
         for client in cl:
             self.messageBox_dict_ctw[client] = QListWidget()
             self.messageBox_dict_wtc[self.messageBox_dict_ctw[client]] = client
@@ -61,6 +81,11 @@ class Example(QWidget):
         self.setWindowIcon(QIcon('icon.svg'))
         self.show()
 
+    def initThreads(self):
+        self.print_thread = ClientThreads(self.client)
+        self.print_thread.print_signal.connect(self.add_message)
+        self.print_thread.start()
+
     def init_client(self):
         self.client = client.Client("usr1", "localhost", 7777)
         self.client.start_th_gui_client()
@@ -84,12 +109,23 @@ class Example(QWidget):
     def select_conlist(self):
         self.messageBox.setCurrentIndex(self.contact_list.currentRow())
         self.client.to_user = self.messageBox_dict_wtc[self.messageBox.currentWidget()]
-        # self.messageBox.addItem(">> " + str(self.contact_list.currentRow()))
+
+    @pyqtSlot(tuple)
+    def add_message(self, message):
+        msg = message[0]
+        from_u = message[1]
+        # self.messageBox.currentWidget().addItem(from_u + ">> " + msg)
+        try:
+            client_widget = self.messageBox_dict_ctw[from_u]
+        except KeyError:
+            mesg_con_log.error("Message from user from not in contact list")
+        else:
+            client_widget.addItem(">> " + msg)
 
 
 
 if __name__ == '__main__':
 
     app = QApplication(sys.argv)
-    ex = Example()
+    ex = ClientGui()
     sys.exit(app.exec_())

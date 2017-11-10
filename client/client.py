@@ -285,8 +285,7 @@ class Client:
         self.sock.connect((self.addr, self.port))   # Соединиться с сервером
         mesg_con_log.info("Client started")
         self.inp_queue.put("presence")
-        # time.sleep(1)
-        self.inp_queue.put("get_contacts")
+        # self.inp_queue.put("get_contacts")
 
         func_to_start = [
             self.processing_send,
