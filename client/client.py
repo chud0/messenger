@@ -33,7 +33,7 @@ class Client:
     def __init__(self, login, addr, port):
         self.login = login  # логин клиента
         self.to_user = None  # кому передавать сообщение
-        self.begin_app = True # флаг завершения приложения
+        self.begin_app = True  # флаг завершения приложения
         self.addr = addr
         self.port = port
         self.sock = None
@@ -41,7 +41,7 @@ class Client:
         self.print_queue = Queue()  # очередь для сообщений для печати
         self.send_queue = Queue()  # очередь для сообщений для отправки
         self.inp_queue = Queue()  # очередь для входящих сообщений
-        self.answ_queue = Queue() # очередь для ожидания ответов
+        self.answ_queue = Queue()  # очередь для ожидания ответов
         self.wait_command = False  # жду ли обязательного ответа
 
     def inp_greetings(self):
@@ -83,7 +83,7 @@ class Client:
                             user_id=user,
                             time=msg_time,
                         )()
-                        # bd_client_app.BDContacts().add_contact(user)
+                        bd_client_app.BDContacts().add_contact(user)
 
                 elif inp_str == "get_contacts":
                     command = inp_str
@@ -104,6 +104,7 @@ class Client:
                             user_id=user,
                             time=msg_time,
                         )()
+                        bd_client_app.BDContacts().remove_contact(user)
 
                 elif inp_str == "quit":
                     command = inp_str
@@ -133,7 +134,6 @@ class Client:
 
             elif inp_str == ">>":  # для смены юзверя
                 self.to_user = None
-
 
             elif self.to_user != None:  # все остальное сообщения если выбрано кому передавать
                 command = "msg"
@@ -167,7 +167,7 @@ class Client:
                 mesg_con_log.debug("Poluchil: %s", str(command))
                 if command == "presence":
                     self.answ_queue.put(command)
-                    self.answ_queue.join() # положил команду, подождал обработку, достал ответ
+                    self.answ_queue.join()  # положил команду, подождал обработку, достал ответ
                     answ = self.answ_queue.get()
                     self.answ_queue.task_done()
                     if answ == config.OK:
@@ -177,14 +177,13 @@ class Client:
                         self.begin_app = False
                 if command == "get_contacts":
                     self.answ_queue.put(command)
-                    self.answ_queue.join() # положил команду, подождал обработку, достал ответ
+                    self.answ_queue.join()  # положил команду, подождал обработку, достал ответ
                     answ = self.answ_queue.get()
                     self.answ_queue.task_done()
                     if answ == config.ACCEPTED:
                         mesg_con_log.info("Contact list updated")
                     else:
                         mesg_con_log.info("Contact list NOT updated!")
-
 
     def processing_recv(self):
         """
@@ -285,7 +284,7 @@ class Client:
         self.sock.connect((self.addr, self.port))   # Соединиться с сервером
         mesg_con_log.info("Client started")
         self.inp_queue.put("presence")
-        # self.inp_queue.put("get_contacts")
+        self.inp_queue.put("get_contacts")
 
         func_to_start = [
             self.processing_send,

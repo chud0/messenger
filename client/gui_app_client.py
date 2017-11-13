@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from PyQt5.QtWidgets import QGridLayout, QHBoxLayout, QWidget, QPushButton, QApplication, QDesktopWidget, QLineEdit, QTextEdit, QListWidget, QListView, QStackedWidget
+from PyQt5.QtWidgets import (QGridLayout, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QApplication, QDesktopWidget, QLineEdit, QTextEdit, QListWidget, QListView, QStackedWidget, QStackedLayout)
 from PyQt5.QtCore import QCoreApplication, pyqtSlot, QThread, pyqtSignal, QModelIndex, QItemSelectionModel
 from PyQt5.QtGui import QIcon, QStandardItem, QStandardItemModel
 import bd_client_app
@@ -13,9 +13,11 @@ import sys
 
 mesg_con_log = logging.getLogger("msg.cons")
 
+
 class ClientThreads(QThread):
     print_signal = pyqtSignal(tuple)
     # client это экземпляр класса Client из client.py
+
     def __init__(self, client):
         QThread.__init__(self)
         self.client = client
@@ -30,33 +32,37 @@ class ClientThreads(QThread):
 class ClientGui(QWidget):
 
     def __init__(self):
+
         self.icon_user = QIcon("user.svg")
         self.icon_new_msg = QIcon("message.svg")
         super().__init__()
         self.init_client()
-        # time.sleep(0.1)
-        self.initUI()
         self.initThreads()
-
+        self.initUI()
 
     def initUI(self):
-        qButton = QPushButton('Send', self)
-        qButton.clicked.connect(self.send_click)
 
+        # Кнопки: добавить/удалить контакты в контакт лист
         self.button_add_contact = QPushButton('add', self)
+        self.button_add_contact.clicked.connect(self.add_contact)
         self.button_del_contact = QPushButton('del', self)
-        self.button_del_contact.setEnabled(False)
-        self.line_add_contact = QLineEdit(self)
+        self.button_del_contact.clicked.connect(self.del_contact)
+        self.button_settings = QPushButton('men', self)
+        self.button_settings.setEnabled(False)  # не работает
+        self.button_connect = QPushButton('conn', self)
+        self.button_connect.setEnabled(False)  # не работает
 
-        self.sendBox = QLineEdit(self)
-        self.sendBox.returnPressed.connect(self.send_click)
+        self.box_button = QHBoxLayout()
+        self.box_button.addWidget(self.button_add_contact)
+        self.box_button.addWidget(self.button_del_contact)
+        self.box_button.addWidget(self.button_settings)
+        self.box_button.addWidget(self.button_connect)
 
+        # создаю модель для листа контактов, подключаю отображение
         cl = bd_client_app.BDContacts().get_contacts()
-
-        # создаю модель для листа контактов:
         self.model_cl = QStandardItemModel()
-        for client in cl:
-            row = QStandardItem(self.icon_user, client)
+        for user in cl:
+            row = QStandardItem(self.icon_user, user)
             self.model_cl.appendRow(row)
 
         self.contact_list = QListView()
@@ -65,38 +71,35 @@ class ClientGui(QWidget):
         self.contact_list.setEditTriggers(QListView.NoEditTriggers)
         self.contact_list.clicked.connect(self.select_conlist)
 
-        grid = QGridLayout()
+        # строка и кнопка отправки сообщений
+        qButton = QPushButton('>>', self)
+        qButton.clicked.connect(self.send_click)
+        self.sendBox = QLineEdit(self)
+        self.sendBox.returnPressed.connect(self.send_click)
 
         self.messageBox = QStackedWidget()
         # два словаря, в первом: логин ключ виджет значение, второй наоборот
         self.messageBox_dict_ctw = {}
         self.messageBox_dict_wtc = {}
-        self.icon_user = QIcon('user.svg')
-        for client in cl:
-            self.messageBox_dict_ctw[client] = QListWidget()
-            self.messageBox_dict_wtc[self.messageBox_dict_ctw[client]] = client
-            self.messageBox.addWidget(self.messageBox_dict_ctw[client])
+        for user in cl:
+            self.messageBox_dict_ctw[user] = QListWidget()
+            self.messageBox_dict_wtc[self.messageBox_dict_ctw[user]] = user
+            self.messageBox.addWidget(self.messageBox_dict_ctw[user])
 
-        self.box_contact_action = QHBoxLayout()
-        self.box_contact_action.addWidget(self.line_add_contact, 10)
-        self.box_contact_action.addWidget(self.button_add_contact, 0)
-        self.box_contact_action.addWidget(self.button_del_contact, 0)
-
+        grid = QGridLayout()
         # строка, столбец, растянуть на строк, растянуть на столбцов
-        grid.addLayout(self.box_contact_action, 0, 0)
-        grid.addWidget(self.contact_list, 1, 0, 2, 3)
+        grid.addWidget(self.contact_list, 0, 0, 2, 3)
+        grid.addLayout(self.box_button, 2, 0)
         grid.addWidget(self.messageBox, 0, 3, 2, 3)
         grid.addWidget(self.sendBox, 2, 3, 1, 2)
         grid.addWidget(qButton, 2, 5)
 
         grid.setSpacing(5)
-        # grid.setColumnMinimumWidth(0, 70)
         grid.setColumnMinimumWidth(3, 200)
-        # grid.setColumnStretch(0, 1)
         grid.setColumnStretch(3, 10)
         self.setLayout(grid)
 
-        self.resize(500, 300)
+        self.resize(800, 300)
         self.center()
         self.setWindowTitle('Avocado')
         self.setWindowIcon(QIcon('icon.svg'))
@@ -139,13 +142,33 @@ class ClientGui(QWidget):
         try:
             client_widget = self.messageBox_dict_ctw[from_u]
         except KeyError:
-            mesg_con_log.error("Message from user from not in contact list")
+            mesg_con_log.error("Message from user from not in contact list:")
+            mesg_con_log.error("%s, %s" % (from_u, msg))
         else:
             client_widget.addItem(">> " + msg)
             message_from = self.model_cl.findItems(from_u)[0]
             if self.contact_list.currentIndex() != self.model_cl.indexFromItem(message_from):
                 message_from.setIcon(self.icon_new_msg)
 
+    @pyqtSlot()
+    def del_contact(self):
+        user = self.client.to_user
+        self.client.inp_queue.put("del_contact " + user)
+        self.messageBox.removeWidget(self.messageBox_dict_ctw[user])
+        self.model_cl.takeRow(self.model_cl.indexFromItem(self.model_cl.findItems(user)[0]).row())
+
+    @pyqtSlot()
+    def add_contact(self):
+        user = self.sendBox.text()
+        self.client.inp_queue.put("add_contact " + user)
+        row = QStandardItem(self.icon_user, user)
+        self.model_cl.appendRow(row)
+
+        self.messageBox_dict_ctw[user] = QListWidget()
+        self.messageBox_dict_wtc[self.messageBox_dict_ctw[user]] = user
+        self.messageBox.addWidget(self.messageBox_dict_ctw[user])
+
+        self.sendBox.clear()
 
 
 if __name__ == '__main__':

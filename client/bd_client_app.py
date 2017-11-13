@@ -12,6 +12,7 @@ Session = sessionmaker(bind=engine)
 # Функция declarative_base создаёт базовый класс для декларативной работы
 Base = declarative_base()
 
+
 # Классы для работы с данными БД
 class Contacts(Base):
     """
@@ -31,6 +32,7 @@ class Contacts(Base):
 
     def __repr__(self):
         return "<User: %s>" % self.UserLog
+
 
 class MsgHistory(Base):
     """
@@ -72,6 +74,7 @@ class BDMsgHistory:
         session.add(MsgHistory(time, client, message, incoming_msg))
         session.commit()
 
+
 class BDContacts:
     """
     Класс работы с контакт листом клиента.
@@ -93,7 +96,7 @@ class BDContacts:
     def remove_contact(self, contact_login):
         session = self.session()
         try:
-            us = session.query(Contacts).filter(Contacts.UserLog==contact_login).one()
+            us = session.query(Contacts).filter(Contacts.UserLog == contact_login).one()
         except exc.NoResultFound:
             return False
         else:
