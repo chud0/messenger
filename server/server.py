@@ -23,17 +23,17 @@ MAX_RECV = 640
 class IncomingClient():
     """Класс, обработчик подключаемых клиентов. Для сервера"""
     # все подключенные клиенты здесь, connected_clients[(addr)] = self.IncomingClient
+    # переделал на connected_clients[логин клиента] = self.IncomingClient
     connected_clients = dict()
 
     def __init__(self, accept_info):
         """Подключен новый клиент"""
         self.conn, self.addr = accept_info
         self.status = ""  # статус клиента, по протоколу
-        self.account_name = "" # логин клиента
+        self.account_name = ""  # логин клиента
         self.last_msg = []  # полученные но необработанное сообщения
         self.next_msg = []  # сообщения к отправке
         IncomingClient.connected_clients[self.addr] = self
-
 
     def processing_msg(self):
         """Проходит по списку полученных сообщений, передает в обработку"""
@@ -56,16 +56,23 @@ class IncomingClient():
             if action == "presence":
                 # на презенс меняю статус, готовлю ответ, и закидываю в очередь на передачу
                 self.status = message["type"]
-                response = self.get_response(config.OK)
+                # если есть такой в базе
+                if bd.BDUsers().check_user(message["account_name"]):
+                    response = self.get_response(config.OK)
+
+                    self.account_name = message["account_name"]  # присваиваю клиенту логин из сообщения
+                    IncomingClient.connected_clients[self.account_name] = self
+                    IncomingClient.connected_clients.pop(self.addr)
+                    mesg_con_log.debug("Presence from %s", self.account_name)
+                    bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  # в базу истории
+                else:
+                    response = self.get_response(config.WRONG_AUTHORIZATION)
                 self.next_msg.append(response)
-                self.account_name = message["account_name"] # присваиваю клиенту логин из сообщения
-                bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  #в базу истории
 
             elif action == "msg":
-                # пересылаю всем (кроме себя)
-                for clnt_next_msg_queue in [clnt.next_msg for clnt in
-                                            IncomingClient.connected_clients.values() if self != clnt]:
-                    clnt_next_msg_queue.append(common_classes.Message(message).message)
+                # пересылаю всем (кроме себя). Больше нет
+                to_user = message["to_u"]
+                IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
 
             elif action == "get_contacts":
                 # передать список конактов
@@ -115,11 +122,16 @@ class IncomingClient():
             )
         return answ_msg()
 
-
     def remove(self):
         """Отключаю. Если вышел не сам, добавить в лог"""
         self.conn.close()
-        IncomingClient.connected_clients.pop(self.addr)
+        try:
+            IncomingClient.connected_clients.pop(self.account_name)
+        except KeyError:
+            try:
+                IncomingClient.connected_clients.pop(self.addr)
+            except KeyError:
+                pass
 
 
 class Server(IncomingClient):
