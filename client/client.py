@@ -69,7 +69,7 @@ class Client:
             m_msg = None
 
             if inp_str.split()[0] in self.service_action:
-                mesg_con_log.debug("Recv service msg: %s", str(inp_str))
+                mesg_con_log.debug("Recv service msg: %s", str(inp_str).rstrip())
                 # значит сервисное сообщение
                 if inp_str.startswith("add_contact"):
                     try:
@@ -160,11 +160,11 @@ class Client:
         while True:
             msg_send = self.send_queue.get()
             self.sock.send(msg_send[1])
-            mesg_con_log.debug("Sent message: %s", str(msg_send))
+            mesg_con_log.debug("Sent message: %s", str(msg_send).rstrip())
             # от некоторых служебных сообщений требуются ответы
             command = msg_send[0]
             if command in self.service_action:
-                mesg_con_log.debug("Poluchil: %s", str(command))
+                # mesg_con_log.debug("Poluchil: %s", str(command))
                 if command == "presence":
                     self.answ_queue.put(command)
                     self.answ_queue.join()  # положил команду, подождал обработку, достал ответ
@@ -193,7 +193,7 @@ class Client:
         while True:
             msg_recv = self.sock.recv(config.MAX_RECV)
             m_msg = common_classes.JimResponse(msg_recv)()
-            mesg_con_log.debug("Received message: %s", str(m_msg))
+            mesg_con_log.debug("Received message: %s", str(m_msg).rstrip())
 
             if not self.answ_queue.empty() and not self.wait_command:
                 self.wait_command = (self.answ_queue.get(), time.time())
@@ -229,6 +229,10 @@ class Client:
                             self.wait_command = False
                             quantity = m_msg["quantity"]
                             contact_list = []
+                    elif m_msg["response"] < 399:  # получил положительлный ответ
+                        self.print_queue.put((True, "SYSTEM"))
+                    elif m_msg["response"] > 399:
+                        self.print_queue.put((False, "SYSTEM"))
 
                 elif "action" in message_keys:
                     message_values = m_msg.values()

@@ -18,26 +18,30 @@ class ClientThreads(QThread):
     print_signal = pyqtSignal(tuple)
     # client это экземпляр класса Client из client.py
 
-    def __init__(self, client):
+    def __init__(self, client, client_gui_ekz):
         QThread.__init__(self)
         self.client = client
+        self.client_gui_ekz = client_gui_ekz
 
     def run(self):
         # print_queue = client.print_que
         while True:
             to_print = self.client.print_queue.get()
             self.print_signal.emit(to_print)
+            if to_print[1] == "SYSTEM":  # ответ сервера в очередь
+                self.client_gui_ekz.service_msg_deq.append(to_print[0])
 
 
 class ClientGui(QWidget):
 
     def __init__(self):
-
+        self.service_msg_deq = []  # очередь сервисных сообщений, очищать!
         self.icon_user = QIcon("user.svg")
         self.icon_new_msg = QIcon("message.svg")
         super().__init__()
         self.init_client()
         self.initThreads()
+        time.sleep(1)
         self.initUI()
 
     def initUI(self):
@@ -106,7 +110,7 @@ class ClientGui(QWidget):
         self.show()
 
     def initThreads(self):
-        self.print_thread = ClientThreads(self.client)
+        self.print_thread = ClientThreads(self.client, self)
         self.print_thread.print_signal.connect(self.add_message)
         self.print_thread.start()
 
@@ -139,6 +143,7 @@ class ClientGui(QWidget):
     def add_message(self, message):
         msg = message[0]
         from_u = message[1]
+
         try:
             client_widget = self.messageBox_dict_ctw[from_u]
         except KeyError:
@@ -160,13 +165,21 @@ class ClientGui(QWidget):
     @pyqtSlot()
     def add_contact(self):
         user = self.sendBox.text()
+        self.service_msg_deq.clear()  # жду свой ответ
         self.client.inp_queue.put("add_contact " + user)
-        row = QStandardItem(self.icon_user, user)
-        self.model_cl.appendRow(row)
 
-        self.messageBox_dict_ctw[user] = QListWidget()
-        self.messageBox_dict_wtc[self.messageBox_dict_ctw[user]] = user
-        self.messageBox.addWidget(self.messageBox_dict_ctw[user])
+        while not self.service_msg_deq:
+            pass  # жду ответ
+
+        if self.service_msg_deq[0] is True:
+            row = QStandardItem(self.icon_user, user)
+            self.model_cl.appendRow(row)
+
+            self.messageBox_dict_ctw[user] = QListWidget()
+            self.messageBox_dict_wtc[self.messageBox_dict_ctw[user]] = user
+            self.messageBox.addWidget(self.messageBox_dict_ctw[user])
+        else:
+            pass
 
         self.sendBox.clear()
 

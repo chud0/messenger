@@ -70,9 +70,13 @@ class IncomingClient():
                 self.next_msg.append(response)
 
             elif action == "msg":
-                # пересылаю всем (кроме себя). Больше нет
+                # пересылаю сообщение если адресат в контакт листе
                 to_user = message["to_u"]
-                IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
+                if to_user in bd.BDCList().get_list(self.account_name):
+                    IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
+                else:
+                    response = self.get_response(config.WRONG_ADDRESSEE, err_msg="User not in your contact list")
+                    self.next_msg.append(response)
 
             elif action == "get_contacts":
                 # передать список конактов
@@ -203,7 +207,7 @@ class Server(IncomingClient):
                     clnt.remove()
                     break
                 else:
-                    mesg_con_log.debug("Sent msg: %s, to %s", str(outgoing_message), clnt.addr)
+                    mesg_con_log.debug("Sent msg: %s, to %s", str(outgoing_message).rstrip(), clnt.addr)
 
     def processing_messages(self):
         clients = self.get_my_clients()
