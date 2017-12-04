@@ -75,7 +75,11 @@ class IncomingClient():
                 # пересылаю сообщение если адресат в контакт листе
                 to_user = message["to_u"]
                 if to_user in bd.BDCList().get_list(self.account_name):
-                    IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
+                    # а онлайн ли адресат
+                    try:
+                        IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
+                    except KeyError:
+                        pass  # сохранить в базу, передать при входе
                 else:
                     response = self.get_response(config.WRONG_ADDRESSEE, err_msg="User not in your contact list")
                     self.next_msg.append(response)
