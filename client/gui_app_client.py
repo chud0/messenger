@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-from PyQt5.QtWidgets import (QGridLayout, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QApplication, QDesktopWidget, QLineEdit, QTextEdit, QListWidget, QListView, QStackedWidget, QStackedLayout)
+from PyQt5.QtWidgets import (QGridLayout, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QApplication, QDesktopWidget, QLineEdit, QTextEdit, QListWidget, QListView, QStackedWidget, QStackedLayout, QInputDialog)
 from PyQt5.QtCore import QCoreApplication, pyqtSlot, QThread, pyqtSignal, QModelIndex, QItemSelectionModel
 from PyQt5.QtGui import QIcon, QStandardItem, QStandardItemModel
 import bd_client_app
@@ -39,10 +39,8 @@ class ClientGui(QWidget):
         self.icon_user = QIcon("user.svg")
         self.icon_new_msg = QIcon("message.svg")
         super().__init__()
-        self.init_client()
-        self.initThreads()
-        time.sleep(1)
-        self.initUI()
+
+        self.get_login_dialog()
 
     def initUI(self):
 
@@ -114,8 +112,30 @@ class ClientGui(QWidget):
         self.print_thread.print_signal.connect(self.add_message)
         self.print_thread.start()
 
+    def get_login_dialog(self):
+
+        text, ok = QInputDialog.getText(self, 'Login', 'Connect with login:')
+        self.login_name = str(text)
+
+        if ok:
+            self.service_msg_deq.clear()  # жду свой ответ
+
+            self.init_client()
+            self.initThreads()
+
+            # while not self.service_msg_deq:
+            #     print(self.service_msg_deq)
+            #     pass  # жду ответ
+            # if self.service_msg_deq[0] is True:
+            time.sleep(1)
+            self.initUI()
+            # else:
+            #     self.exit()
+        else:
+            self.exit()
+
     def init_client(self):
-        self.client = client.Client("usr1", "localhost", 7777)
+        self.client = client.Client(self.login_name, "localhost", 7777)
         self.client.start_th_gui_client()
 
     def center(self):
@@ -184,8 +204,11 @@ class ClientGui(QWidget):
         self.sendBox.clear()
 
 
-if __name__ == '__main__':
-
+def main():
     app = QApplication(sys.argv)
     ex = ClientGui()
     sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()

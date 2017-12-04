@@ -53,7 +53,7 @@ class Client:
         Метод обработки инпута. Берет из инпута и складывает в очердь входящих.
         Очередь входящих нужна для того чтобы самому если нужно закидывать сообщения/команды.
         """
-        while True:
+        while self.begin_app:
             inp_str = input(self.inp_greetings())
             if len(inp_str):
                 self.inp_queue.put(inp_str)
@@ -63,7 +63,7 @@ class Client:
         Метод обработки входящих собщений из очереди.
         Сообщение проверяется на вхождение в команды, иначе считается сообщением.
         """
-        while True:
+        while self.begin_app:
             inp_str = self.inp_queue.get()
             msg_time = time.time()
             m_msg = None
@@ -157,7 +157,7 @@ class Client:
         Заморочки только с командами требующими подтверждения.
         Механизм подтверждения реализован через очередь "answ_queue".
         """
-        while True:
+        while self.begin_app:
             msg_send = self.send_queue.get()
             self.sock.send(msg_send[1])
             mesg_con_log.debug("Sent message: %s", str(msg_send).rstrip())
@@ -190,7 +190,7 @@ class Client:
         Метод обработки входящих сообщений.
         Заморочки только с ответами на сообщения для processing_send
         """
-        while True:
+        while self.begin_app:
             msg_recv = self.sock.recv(config.MAX_RECV)
             m_msg = common_classes.JimResponse(msg_recv)()
             mesg_con_log.debug("Received message: %s", str(m_msg).rstrip())
@@ -209,7 +209,7 @@ class Client:
             except AttributeError:
                 pass
             else:
-                if "message" in message_keys:
+                if "message" in message_keys and "ERROR" not in message_keys:
                     message = m_msg["message"]
                     self.print_queue.put((message, m_msg["from_u"]))
                     bd_client_app.BDMsgHistory().save_history(m_msg["time"], m_msg["from_u"], m_msg["message"])

@@ -30,6 +30,7 @@ class IncomingClient():
         """Подключен новый клиент"""
         self.conn, self.addr = accept_info
         self.status = ""  # статус клиента, по протоколу
+        self.delete = False  # True - удаляю чтоб не мешался
         self.account_name = ""  # логин клиента
         self.last_msg = []  # полученные но необработанное сообщения
         self.next_msg = []  # сообщения к отправке
@@ -67,6 +68,7 @@ class IncomingClient():
                     bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  # в базу истории
                 else:
                     response = self.get_response(config.WRONG_AUTHORIZATION)
+                    self.delete = True
                 self.next_msg.append(response)
 
             elif action == "msg":
@@ -214,6 +216,13 @@ class Server(IncomingClient):
         for clnt in clients:
             clnt.processing_msg()
 
+    def processing_clients(self):
+        # удаляю помеченные к удалению
+        clients = self.get_my_clients()
+        for clnt in clients:
+            if clnt.delete:
+                clnt.remove()
+
 
 def mainloop():
     s = Server(ADDR, PORT)
@@ -224,6 +233,7 @@ def mainloop():
         s.recv_messages()
         s.processing_messages()
         s.send_messages()
+        s.processing_clients()
 
 
 if __name__ == '__main__':
