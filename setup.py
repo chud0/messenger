@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="avacado_messenger",
-    version='0.1.1',
+    version='0.1.2',
     description='Server for short text messanger',
     url='https://github.com/chud0/messenger',
     author="chud0",
