@@ -33,7 +33,7 @@ class Client:
     def __init__(self, login, addr, port):
         self.login = login  # логин клиента
         self.to_user = None  # кому передавать сообщение
-        self.begin_app = True # флаг завершения приложения
+        self.begin_app = True  # флаг завершения приложения
         self.addr = addr
         self.port = port
         self.sock = None
@@ -41,7 +41,7 @@ class Client:
         self.print_queue = Queue()  # очередь для сообщений для печати
         self.send_queue = Queue()  # очередь для сообщений для отправки
         self.inp_queue = Queue()  # очередь для входящих сообщений
-        self.answ_queue = Queue() # очередь для ожидания ответов
+        self.answ_queue = Queue()  # очередь для ожидания ответов
         self.wait_command = False  # жду ли обязательного ответа
 
     def inp_greetings(self):
@@ -53,7 +53,7 @@ class Client:
         Метод обработки инпута. Берет из инпута и складывает в очердь входящих.
         Очередь входящих нужна для того чтобы самому если нужно закидывать сообщения/команды.
         """
-        while True:
+        while self.begin_app:
             inp_str = input(self.inp_greetings())
             if len(inp_str):
                 self.inp_queue.put(inp_str)
@@ -63,13 +63,13 @@ class Client:
         Метод обработки входящих собщений из очереди.
         Сообщение проверяется на вхождение в команды, иначе считается сообщением.
         """
-        while True:
+        while self.begin_app:
             inp_str = self.inp_queue.get()
             msg_time = time.time()
             m_msg = None
 
             if inp_str.split()[0] in self.service_action:
-                mesg_con_log.debug("Recv service msg: %s", str(inp_str))
+                mesg_con_log.debug("Recv service msg: %s", str(inp_str).rstrip())
                 # значит сервисное сообщение
                 if inp_str.startswith("add_contact"):
                     try:
@@ -83,7 +83,7 @@ class Client:
                             user_id=user,
                             time=msg_time,
                         )()
-                        # bd_client_app.BDContacts().add_contact(user)
+                        bd_client_app.BDContacts().add_contact(user)
 
                 elif inp_str == "get_contacts":
                     command = inp_str
@@ -104,6 +104,7 @@ class Client:
                             user_id=user,
                             time=msg_time,
                         )()
+                        bd_client_app.BDContacts().remove_contact(user)
 
                 elif inp_str == "quit":
                     command = inp_str
@@ -134,7 +135,6 @@ class Client:
             elif inp_str == ">>":  # для смены юзверя
                 self.to_user = None
 
-
             elif self.to_user != None:  # все остальное сообщения если выбрано кому передавать
                 command = "msg"
                 m_msg = common_classes.JimMessage(
@@ -157,17 +157,17 @@ class Client:
         Заморочки только с командами требующими подтверждения.
         Механизм подтверждения реализован через очередь "answ_queue".
         """
-        while True:
+        while self.begin_app:
             msg_send = self.send_queue.get()
             self.sock.send(msg_send[1])
-            mesg_con_log.debug("Sent message: %s", str(msg_send))
+            mesg_con_log.debug("Sent message: %s", str(msg_send).rstrip())
             # от некоторых служебных сообщений требуются ответы
             command = msg_send[0]
             if command in self.service_action:
-                mesg_con_log.debug("Poluchil: %s", str(command))
+                # mesg_con_log.debug("Poluchil: %s", str(command))
                 if command == "presence":
                     self.answ_queue.put(command)
-                    self.answ_queue.join() # положил команду, подождал обработку, достал ответ
+                    self.answ_queue.join()  # положил команду, подождал обработку, достал ответ
                     answ = self.answ_queue.get()
                     self.answ_queue.task_done()
                     if answ == config.OK:
@@ -177,7 +177,7 @@ class Client:
                         self.begin_app = False
                 if command == "get_contacts":
                     self.answ_queue.put(command)
-                    self.answ_queue.join() # положил команду, подождал обработку, достал ответ
+                    self.answ_queue.join()  # положил команду, подождал обработку, достал ответ
                     answ = self.answ_queue.get()
                     self.answ_queue.task_done()
                     if answ == config.ACCEPTED:
@@ -185,16 +185,15 @@ class Client:
                     else:
                         mesg_con_log.info("Contact list NOT updated!")
 
-
     def processing_recv(self):
         """
         Метод обработки входящих сообщений.
         Заморочки только с ответами на сообщения для processing_send
         """
-        while True:
+        while self.begin_app:
             msg_recv = self.sock.recv(config.MAX_RECV)
             m_msg = common_classes.JimResponse(msg_recv)()
-            mesg_con_log.debug("Received message: %s", str(m_msg))
+            mesg_con_log.debug("Received message: %s", str(m_msg).rstrip())
 
             if not self.answ_queue.empty() and not self.wait_command:
                 self.wait_command = (self.answ_queue.get(), time.time())
@@ -210,7 +209,7 @@ class Client:
             except AttributeError:
                 pass
             else:
-                if "message" in message_keys:
+                if "message" in message_keys and "ERROR" not in message_keys:
                     message = m_msg["message"]
                     self.print_queue.put((message, m_msg["from_u"]))
                     bd_client_app.BDMsgHistory().save_history(m_msg["time"], m_msg["from_u"], m_msg["message"])
@@ -230,6 +229,10 @@ class Client:
                             self.wait_command = False
                             quantity = m_msg["quantity"]
                             contact_list = []
+                    elif m_msg["response"] < 399:  # получил положительлный ответ
+                        self.print_queue.put((True, "SYSTEM"))
+                    elif m_msg["response"] > 399:
+                        self.print_queue.put((False, "SYSTEM"))
 
                 elif "action" in message_keys:
                     message_values = m_msg.values()
@@ -285,7 +288,6 @@ class Client:
         self.sock.connect((self.addr, self.port))   # Соединиться с сервером
         mesg_con_log.info("Client started")
         self.inp_queue.put("presence")
-        # time.sleep(1)
         self.inp_queue.put("get_contacts")
 
         func_to_start = [

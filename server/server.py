@@ -23,17 +23,18 @@ MAX_RECV = 640
 class IncomingClient():
     """Класс, обработчик подключаемых клиентов. Для сервера"""
     # все подключенные клиенты здесь, connected_clients[(addr)] = self.IncomingClient
+    # переделал на connected_clients[логин клиента] = self.IncomingClient
     connected_clients = dict()
 
     def __init__(self, accept_info):
         """Подключен новый клиент"""
         self.conn, self.addr = accept_info
         self.status = ""  # статус клиента, по протоколу
-        self.account_name = "" # логин клиента
+        self.delete = False  # True - удаляю чтоб не мешался
+        self.account_name = ""  # логин клиента
         self.last_msg = []  # полученные но необработанное сообщения
         self.next_msg = []  # сообщения к отправке
         IncomingClient.connected_clients[self.addr] = self
-
 
     def processing_msg(self):
         """Проходит по списку полученных сообщений, передает в обработку"""
@@ -56,16 +57,32 @@ class IncomingClient():
             if action == "presence":
                 # на презенс меняю статус, готовлю ответ, и закидываю в очередь на передачу
                 self.status = message["type"]
-                response = self.get_response(config.OK)
+                # если есть такой в базе
+                if bd.BDUsers().check_user(message["account_name"]):
+                    response = self.get_response(config.OK)
+
+                    self.account_name = message["account_name"]  # присваиваю клиенту логин из сообщения
+                    IncomingClient.connected_clients[self.account_name] = self
+                    IncomingClient.connected_clients.pop(self.addr)
+                    mesg_con_log.debug("Presence from %s", self.account_name)
+                    bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  # в базу истории
+                else:
+                    response = self.get_response(config.WRONG_AUTHORIZATION)
+                    self.delete = True
                 self.next_msg.append(response)
-                self.account_name = message["account_name"] # присваиваю клиенту логин из сообщения
-                bd.BDHistory().add_entry(time.time(), self.account_name, self.addr[0])  #в базу истории
 
             elif action == "msg":
-                # пересылаю всем (кроме себя)
-                for clnt_next_msg_queue in [clnt.next_msg for clnt in
-                                            IncomingClient.connected_clients.values() if self != clnt]:
-                    clnt_next_msg_queue.append(common_classes.Message(message).message)
+                # пересылаю сообщение если адресат в контакт листе
+                to_user = message["to_u"]
+                if to_user in bd.BDCList().get_list(self.account_name):
+                    # а онлайн ли адресат
+                    try:
+                        IncomingClient.connected_clients[to_user].next_msg.append(common_classes.Message(message).message)
+                    except KeyError:
+                        pass  # сохранить в базу, передать при входе
+                else:
+                    response = self.get_response(config.WRONG_ADDRESSEE, err_msg="User not in your contact list")
+                    self.next_msg.append(response)
 
             elif action == "get_contacts":
                 # передать список конактов
@@ -115,11 +132,16 @@ class IncomingClient():
             )
         return answ_msg()
 
-
     def remove(self):
         """Отключаю. Если вышел не сам, добавить в лог"""
         self.conn.close()
-        IncomingClient.connected_clients.pop(self.addr)
+        try:
+            IncomingClient.connected_clients.pop(self.account_name)
+        except KeyError:
+            try:
+                IncomingClient.connected_clients.pop(self.addr)
+            except KeyError:
+                pass
 
 
 class Server(IncomingClient):
@@ -191,12 +213,19 @@ class Server(IncomingClient):
                     clnt.remove()
                     break
                 else:
-                    mesg_con_log.debug("Sent msg: %s, to %s", str(outgoing_message), clnt.addr)
+                    mesg_con_log.debug("Sent msg: %s, to %s", str(outgoing_message).rstrip(), clnt.addr)
 
     def processing_messages(self):
         clients = self.get_my_clients()
         for clnt in clients:
             clnt.processing_msg()
+
+    def processing_clients(self):
+        # удаляю помеченные к удалению
+        clients = self.get_my_clients()
+        for clnt in clients:
+            if clnt.delete:
+                clnt.remove()
 
 
 def mainloop():
@@ -208,6 +237,7 @@ def mainloop():
         s.recv_messages()
         s.processing_messages()
         s.send_messages()
+        s.processing_clients()
 
 
 if __name__ == '__main__':

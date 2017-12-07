@@ -13,6 +13,7 @@ Session = sessionmaker(bind=engine)
 # Функция declarative_base создаёт базовый класс для декларативной работы
 Base = declarative_base()
 
+
 # Классы для работы с данными БД
 class Users(Base):
     __tablename__ = "Users"
@@ -29,6 +30,7 @@ class Users(Base):
     def __repr__(self):
         return "<User: %s>" % self.UserLog
 
+
 class UsersHstr(Base):
     __tablename__ = "UsersHistory"
     Time = Column(Float, primary_key=True)
@@ -43,6 +45,7 @@ class UsersHstr(Base):
     def __repr__(self):
         return "<User %s, time %s, ip %s>" % (self.UserID, self.Time, self.IP)
 
+
 class ContactList(Base):
     __tablename__ = "ContactList"
     UserID = Column(Integer, ForeignKey('Users.UserID'), primary_key=True)
@@ -55,12 +58,14 @@ class ContactList(Base):
     def __repr__(self):
         return "<User %s in contact list user %s>" % (self.ClientID, self.UserID)
 
+
 Session = sessionmaker(bind=engine)
 
 Base.metadata.create_all(engine)  # create DB
 
 # Создаём сессию
 session = Session()
+
 
 # Классы для работы с БД необходимые для работы методы
 class BDUsers:
@@ -90,10 +95,22 @@ class BDUsers:
 
     def find_user(self, login, session):
         # find user on login
-        return session.query(Users).filter(Users.UserLog==login).one
+        return session.query(Users).filter(Users.UserLog == login).one
 
     def find_user_id(self, us_id, session):
-        return session.query(Users).filter(Users.UserID==us_id).one
+        return session.query(Users).filter(Users.UserID == us_id).one
+
+    def all_users(self):
+        session = self.session()
+        a_users = session.query(Users.UserLog).all()
+        return [usr[0] for usr in a_users]
+
+    def check_user(self, login):
+        if login in self.all_users():
+            return True
+        else:
+            return False
+
 
 class BDCList:
     """
@@ -128,7 +145,8 @@ class BDCList:
             cl = BDUsers().find_user(client, session)()
         except exc.NoResultFound:
             return False
-        entry = session.query(ContactList).filter(and_(ContactList.UserID==us.UserID), (ContactList.ClientID==cl.UserID)).one()
+        entry = session.query(
+                ContactList).filter(and_(ContactList.UserID == us.UserID), (ContactList.ClientID == cl.UserID)).one()
         session.delete(entry)
         session.commit()
         return True
@@ -139,10 +157,11 @@ class BDCList:
             us = BDUsers().find_user(user, session)()
         except exc.NoResultFound:
             return False
-        cl_list_id = session.query(ContactList).filter(ContactList.UserID==us.UserID).all()
+        cl_list_id = session.query(ContactList).filter(ContactList.UserID == us.UserID).all()
         cl_list = [BDUsers().find_user_id(client.ClientID, session)().UserLog for client in cl_list_id]
         session.commit()
         return cl_list
+
 
 class BDHistory:
     def __init__(self):
@@ -164,7 +183,7 @@ class BDHistory:
             user_id = BDUsers().find_user(user, session)().UserID
         except exc.NoResultFound:
             return False
-        history = session.query(UsersHstr).filter(UsersHstr.UserID==user_id).all()
+        history = session.query(UsersHstr).filter(UsersHstr.UserID == user_id).all()
         session.commit()
         return history
 

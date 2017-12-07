@@ -13,6 +13,8 @@ BASIC_NOTICE = 100
 OK = 200
 ACCEPTED = 202  # применяется только для списка контактов
 WRONG_REQUEST = 400  # неправильный запрос/json объект
+WRONG_AUTHORIZATION = 401  # нет такого логина в базе
+WRONG_ADDRESSEE = 403  # нет такого логина контакт листе
 SERVER_ERROR = 500
 
 # Словарь обязательных ключей для сообщений от клиента
@@ -36,5 +38,7 @@ MANDATORY_RESPONSE_KEYS = {
     OK: ["response", "time", "alert"],
     ACCEPTED: ["response", "quantity"],
     WRONG_REQUEST: ["response", "time", "error"],
+    WRONG_AUTHORIZATION: ["response", "time", "error"],
+    WRONG_ADDRESSEE: ["response", "time", "error"],
     SERVER_ERROR: ["response", "time", "error"],
 }
